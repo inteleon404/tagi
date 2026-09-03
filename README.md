@@ -1,4 +1,5 @@
 # tagi
+
 > Fast URL Scope Filtering & Reconnaissance Utility
 
 ```text
@@ -7,111 +8,246 @@ _/  |______     ____ |__|
 \   __\__  \   / ___\|  |
  |  |  / __ \_/ /_/  >  |
  |__| (____  /\___  /|__|
-           \//_____/     
-
+           \//____/
 ```
 
-`tagi` is a fast, lightweight command-line utility written in Go designed for filtering large streams of URLs based on in-scope and out-of-scope domains. It reads URLs from standard input (STDIN), processes them to ensure they match your defined scope (including subdomains), automatically removes duplicates, and prints the filtered results to standard output (STDOUT).
+`tagi` is a fast, lightweight command-line utility written in Go for filtering URL streams against an authorized bug-bounty scope.
 
-It is built for bug bounty reconnaissance pipelines, integrating seamlessly with tools like `katana`, `waybackurls`, `gau`, and `hakrawler`.
+It is designed for reconnaissance pipelines and works cleanly with tools such as `katana`, `waybackurls`, `gau`, `httpx`, and other tools that output URLs or hosts to STDOUT.
 
 ## Features
 
-* **Pipeline Ready:** Designed to accept STDIN from other recon tools and output clean results to STDOUT.
-* **Smart Scope Matching:** Automatically matches both the exact domain and its subdomains (e.g., scoping `example.com` will match `api.example.com`).
-* **Out-of-Scope (OOS) Filtering:** Exclude specific domains or subdomains from your final output to avoid out-of-bounds testing.
-* **Built-in Deduplication:** Automatically tracks and drops duplicate URLs on the fly to keep your output clean and efficient.
-* **Highly Performant:** Utilizes buffered I/O and optimized mapping for rapid processing of massive text streams.
+* **Fast & Lightweight** — Go standard library only.
+* **Pipeline Friendly** — Reads from STDIN and writes matched URLs to STDOUT.
+* **Scope Matching** — Matches an exact hostname and its valid subdomains.
+* **Multiple Scopes** — Load multiple in-scope domains from a file.
+* **Boundary Safe** — Prevents false matches such as `evil-example.com` matching `example.com`.
+* **Case Insensitive** — Hostnames are normalized before matching.
+* **Schemeless Support** — Handles inputs such as `example.com/path`.
+* **Port Aware** — Correctly handles URLs such as `example.com:8080`.
+* **Optional Deduplication** — Disabled by default; enable with `-d`.
+* **Quiet Mode** — Keeps pipeline output clean.
+* **Verbose Statistics** — Optional statistics are written to STDERR.
+* **No External Dependencies** — Standard library only.
 
 ## Installation
 
-Ensure you have [Go](https://golang.org/doc/install) installed on your system. You can install `tagi` directly using `go install`:
+### Go
 
 ```bash
 go install github.com/INTELEON404/tagi@latest
 ```
 
-*Ensure your `$GOPATH/bin` directory is added to your system's `$PATH` to run the command globally.*
+Make sure your Go binary directory is in your `$PATH`.
+
+### Build from Source
+
+```bash
+git clone https://github.com/INTELEON404/tagi.git
+cd tagi
+go build -o tagi .
+```
 
 ## Usage
 
 ```bash
-command | tagi [options]
-
+command | tagi -s <host|file> [options]
 ```
 
-### Flags
+## Options
 
-| Flag | Description |
-| --- | --- |
-| `--scope <host>` | Define a single in-scope hostname (e.g., `example.com`). |
-| `--scopelist <file>` | Path to a file containing a list of in-scope hostnames. |
-| `--ooscope <host>` | Define a single out-of-scope hostname to exclude (e.g., `admin.example.com`). |
-| `--ooslist <file>` | Path to a file containing a list of out-of-scope hostnames. |
-| `--help` | Display the help menu and examples. |
+| Flag                       | Description                                  |
+| -------------------------- | -------------------------------------------- |
+| `-s, --scope <host\|file>` | In-scope hostname or file containing hosts   |
+| `-d, --dedupe`             | Remove duplicate URLs                        |
+| `-q, --quiet`              | Suppress non-essential output and statistics |
+| `-v, --verbose`            | Print processing statistics to STDERR        |
+| `-h, --help`               | Show help and examples                       |
+| `--version`                | Show version                                 |
 
-*Note: You cannot use `--scope` and `--scopelist` simultaneously.*
+> `--version` is the only version flag. There is no `-V` option.
 
 ## Examples
 
-### 1. Basic Single Scope
-
-Filter URLs for a single domain and its subdomains:
+### Single Scope
 
 ```bash
-cat urls.txt | tagi --scope example.com
-
+cat urls.txt | tagi -s example.com
 ```
 
-### 2. Using a Scope List
-
-Filter URLs against a text file containing multiple in-scope domains:
+### Scope File
 
 ```bash
-katana -list domains.txt | tagi --scopelist scope.txt
-
+cat urls.txt | tagi -s scope.txt
 ```
 
-### 3. Scope with a Specific Exclusion
-
-Keep everything in `example.com`, but strictly exclude `admin.example.com`:
+### Deduplicate Results
 
 ```bash
-waybackurls example.com | tagi --scope example.com --ooscope admin.example.com
-
+cat urls.txt | tagi -s example.com -d
 ```
 
-### 4. Advanced: Scope and Out-of-Scope Lists
-
-Filter using comprehensive lists for both allowed and excluded scopes, writing the output to a file:
+### Quiet Pipeline
 
 ```bash
-cat all_urls.txt | tagi --scopelist scope.txt --ooslist out_of_scope.txt > valid_targets.txt
-
+cat urls.txt | tagi -s example.com -q
 ```
 
-## Input/Output File Formatting
+### Verbose Statistics
 
-When providing a file to `--scopelist` or `--ooslist`, list one hostname per line. You can also use `#` for comments or leave blank lines for structural readability. The tool will parse and ignore these automatically.
+```bash
+cat urls.txt | tagi -s example.com -v
+```
 
-**Example `scope.txt`:**
+### Bug Bounty Recon Pipeline
+
+```bash
+katana -list domains.txt | tagi -s scope.txt -d
+```
+
+```bash
+gau example.com | tagi -s example.com -d
+```
+
+```bash
+waybackurls example.com | tagi -s example.com -d
+```
+
+## Scope File
+
+The scope file contains one hostname per line.
 
 ```text
 # Main target
 example.com
 
-# Acquisitions
-target-acquisition.com
+# Additional authorized target
+target.org
+```
 
+Blank lines and lines beginning with `#` are ignored.
+
+## Matching Behavior
+
+If the scope is:
+
+```text
+example.com
+```
+
+These are matched:
+
+```text
+example.com
+www.example.com
+api.example.com
+a.b.example.com
+```
+
+These are **not** matched:
+
+```text
+evil-example.com
+notexample.com
+example.com.au
+example.org
+```
+
+Hostnames are matched case-insensitively.
+
+For example:
+
+```text
+https://EXAMPLE.COM/path
+```
+
+matches:
+
+```text
+example.com
+```
+
+Ports are handled correctly:
+
+```text
+https://example.com:8443/api
+```
+
+matches:
+
+```text
+example.com
+```
+
+## Input & Output
+
+`tagi` is designed for Unix-style pipelines.
+
+**STDIN**
+
+Receives URLs or hosts:
+
+```text
+https://example.com/
+https://api.example.com/login
+https://external.example.org/
+```
+
+**STDOUT**
+
+Only matched input lines are printed:
+
+```text
+https://example.com/
+https://api.example.com/login
+```
+
+Statistics and errors are written to **STDERR**, keeping STDOUT safe for further pipeline processing.
+
+## Deduplication
+
+Deduplication is **disabled by default**.
+
+Enable it with:
+
+```bash
+tagi -s example.com -d
+```
+
+The original input URL is preserved when printed; `tagi` does not rewrite or normalize the output URL.
+
+## Version
+
+```bash
+tagi --version
+```
+
+Example:
+
+```text
+tagi 1.0.0
+```
+
+## Verification
+
+Run the following before releasing:
+
+```bash
+gofmt -w .
+go vet ./...
+go test ./...
+go build -o tagi .
 ```
 
 ## Disclaimer
 
 > [!WARNING]
-> **This tool is for educational and authorized security testing purposes only.**
-> The author and contributors assume no liability and are not responsible for any misuse, damage, or legal consequences resulting from the use of this tool.
-> Users must ensure they have explicit, written authorization from the target system's owners prior to conducting any reconnaissance or security testing operations.
+> `tagi` is intended for authorized security research, bug-bounty reconnaissance, and educational use.
+>
+> Only process targets that are explicitly within the scope of the relevant bug-bounty program or for which you have authorization to perform security testing.
+>
+> The author and contributors are not responsible for misuse of the software.
 
 ## License
 
-Distributed under the MIT License. See the  [LICENSE](LICENSE) file for more information.
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
