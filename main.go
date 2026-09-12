@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const version = "1.2"
+const version = "1.3"
 
 func main() {
 	os.Args = preprocessArgs(os.Args)
@@ -20,6 +20,7 @@ func main() {
 		quiet   = flag.Bool("quiet", false, "")
 		dedupe  = flag.Bool("dedupe", false, "")
 		verbose = flag.Bool("verbose", false, "")
+		noSub   = flag.Bool("no-sub", false, "")
 		help    = flag.Bool("help", false, "")
 		ver     = flag.Bool("version", false, "")
 	)
@@ -48,7 +49,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := process(os.Stdin, os.Stdout, os.Stderr, scopes, *dedupe, *verbose, *quiet); err != nil {
+	if err := process(os.Stdin, os.Stdout, os.Stderr, scopes, *dedupe, *verbose, *quiet, *noSub); err != nil {
 		fmt.Fprintf(os.Stderr, "tagi: error: %v\n", err)
 		os.Exit(1)
 	}
@@ -109,6 +110,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "Options:")
 	fmt.Fprintln(os.Stderr, "  -s, --scope <host|file>  In-scope hostname or file containing hosts")
 	fmt.Fprintln(os.Stderr, "  -d, --dedupe             Remove duplicate URLs")
+	fmt.Fprintln(os.Stderr, "      --no-sub             Exact hostname matching (disable subdomain matching)")
 	fmt.Fprintln(os.Stderr, "  -q, --quiet              Suppress usage and statistics")
 	fmt.Fprintln(os.Stderr, "  -v, --verbose            Print statistics to stderr")
 	fmt.Fprintln(os.Stderr, "  -h, --help               Show this help message")
@@ -117,7 +119,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "Examples:")
 	fmt.Fprintln(os.Stderr, "  cat urls.txt | tagi -s example.com")
 	fmt.Fprintln(os.Stderr, "  cat urls.txt | tagi -s scope.txt -d")
-	fmt.Fprintln(os.Stderr, "  cat urls.txt | tagi -s scope.txt -q")
+	fmt.Fprintln(os.Stderr, "  cat urls.txt | tagi -s scope.txt --no-sub")
 }
 
 
@@ -177,9 +179,12 @@ func normalizeHost(s string) string {
 	return s
 }
 
-func inScope(host string, scopes map[string]struct{}) bool {
+func inScope(host string, scopes map[string]struct{}, exactOnly bool) bool {
 	if _, ok := scopes[host]; ok {
 		return true
+	}
+	if exactOnly {
+		return false
 	}
 	for i := 0; i < len(host); i++ {
 		if host[i] == '.' {
@@ -191,7 +196,7 @@ func inScope(host string, scopes map[string]struct{}) bool {
 	return false
 }
 
-func process(r io.Reader, w io.Writer, errW io.Writer, scopes map[string]struct{}, dedupe, verbose, quiet bool) error {
+func process(r io.Reader, w io.Writer, errW io.Writer, scopes map[string]struct{}, dedupe, verbose, quiet, noSub bool) error {
 	scanner := bufio.NewScanner(r)
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
@@ -226,7 +231,7 @@ func process(r io.Reader, w io.Writer, errW io.Writer, scopes map[string]struct{
 			continue
 		}
 
-		if !inScope(host, scopes) {
+		if !inScope(host, scopes, noSub) {
 			continue
 		}
 
