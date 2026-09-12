@@ -1,15 +1,6 @@
 # tagi
 
-> Fast URL Scope Filtering for Security Research
-
-```text
-  __                 .__
-_/  |______     ____ |__|
-\   __\__  \   / ___\|  |
- |  |  / __ \_/ /_/  >  |
- |__| (____  /\___  /|__|
-           \//____/
-```
+<video src="https://github.com/user-attachments/assets/44b2a54b-b959-44fa-9911-b5d700cfc9e4" controls width="800"></video>
 
 `tagi` is a lightweight, fast command-line utility for filtering URL streams against an authorized bug-bounty scope. Built with Go and designed for reconnaissance pipelines, it integrates seamlessly with tools like `katana`, `waybackurls`, `gau`, and `httpx`.
 
