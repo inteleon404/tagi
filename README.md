@@ -1,6 +1,6 @@
 # tagi
 
-> Fast URL Scope Filtering & Reconnaissance Utility
+> Fast URL Scope Filtering for Security Research
 
 ```text
   __                 .__
@@ -11,34 +11,30 @@ _/  |______     ____ |__|
            \//____/
 ```
 
-`tagi` is a fast, lightweight command-line utility written in Go for filtering URL streams against an authorized bug-bounty scope.
-
-It is designed for reconnaissance pipelines and works cleanly with tools such as `katana`, `waybackurls`, `gau`, `httpx`, and other tools that output URLs or hosts to STDOUT.
+`tagi` is a lightweight, fast command-line utility for filtering URL streams against an authorized bug-bounty scope. Built with Go and designed for reconnaissance pipelines, it integrates seamlessly with tools like `katana`, `waybackurls`, `gau`, and `httpx`.
 
 ## Features
 
-* **Fast & Lightweight** — Go standard library only.
-* **Pipeline Friendly** — Reads from STDIN and writes matched URLs to STDOUT.
-* **Scope Matching** — Matches an exact hostname and its valid subdomains.
-* **Multiple Scopes** — Load multiple in-scope domains from a file.
-* **Boundary Safe** — Prevents false matches such as `evil-example.com` matching `example.com`.
-* **Case Insensitive** — Hostnames are normalized before matching.
-* **Schemeless Support** — Handles inputs such as `example.com/path`.
-* **Port Aware** — Correctly handles URLs such as `example.com:8080`.
-* **Optional Deduplication** — Disabled by default; enable with `-d`.
-* **Quiet Mode** — Keeps pipeline output clean.
-* **Verbose Statistics** — Optional statistics are written to STDERR.
-* **No External Dependencies** — Standard library only.
+- **Fast & Minimal** — Go standard library only, no external dependencies
+- **Pipeline Friendly** — Reads STDIN, writes matched URLs to STDOUT
+- **Exact & Subdomain Matching** — Match full domain trees or exact hostnames only
+- **Multiple Scopes** — Load domains from a file or pass a single hostname
+- **Boundary Safe** — Prevents false positives like `evil-example.com` matching `example.com`
+- **Case Insensitive** — Hostnames normalized before matching
+- **Schemeless Support** — Accepts `example.com/path` as input
+- **Port Aware** — Correctly handles `example.com:8080`
+- **Deduplication** — Optional URL deduplication via `-d` flag
+- **Clean Output** — Statistics written to STDERR, STDOUT reserved for data
 
 ## Installation
 
-### Go
+### Pre-built Binary
 
 ```bash
 go install github.com/INTELEON404/tagi@latest
 ```
 
-Make sure your Go binary directory is in your `$PATH`.
+Ensure your Go binary directory is in your `$PATH`.
 
 ### Build from Source
 
@@ -51,25 +47,140 @@ go build -o tagi .
 ## Usage
 
 ```bash
-command | tagi -s <host|file> [options]
+cat urls.txt | tagi -s <host|file> [options]
 ```
 
 ## Options
 
-| Flag                       | Description                                  |
-| -------------------------- | -------------------------------------------- |
-| `-s, --scope <host\|file>` | In-scope hostname or file containing hosts   |
-| `-d, --dedupe`             | Remove duplicate URLs                        |
-| `-q, --quiet`              | Suppress non-essential output and statistics |
-| `-v, --verbose`            | Print processing statistics to STDERR        |
-| `-h, --help`               | Show help and examples                       |
-| `--version`                | Show version                                 |
+| Flag | Description |
+|------|-------------|
+| `-s, --scope <host\|file>` | In-scope hostname or path to scope file |
+| `-d, --dedupe` | Remove duplicate URLs from output |
+| `--no-sub` | Match exact hostname only (exclude all subdomains) |
+| `-q, --quiet` | Suppress statistics and non-critical messages |
+| `-v, --verbose` | Print processing statistics to STDERR |
+| `-h, --help` | Show usage and examples |
+| `--version` | Display version information |
 
-> `--version` is the only version flag. There is no `-V` option.
+## Scope Matching
+
+### Default Behavior (Subdomain Matching)
+
+By default, `tagi` matches a scope hostname and all its subdomains.
+
+**Scope:**
+```
+example.com
+```
+
+**Matched:**
+```
+example.com
+www.example.com
+api.example.com
+blog.example.com
+deep.nested.example.com
+```
+
+**Not Matched:**
+```
+evil-example.com
+notexample.com
+example.com.au
+example.org
+```
+
+### Exact Hostname Matching (`--no-sub`)
+
+With the `--no-sub` flag, `tagi` matches the scope hostname exactly and excludes all subdomains.
+
+**Scope:**
+```
+example.com
+```
+
+**Matched:**
+```
+example.com
+```
+
+**Not Matched:**
+```
+www.example.com
+api.example.com
+blog.example.com
+deep.nested.example.com
+evil-example.com
+notexample.com
+example.com.au
+example.org
+```
+
+### Case Sensitivity
+
+Hostnames are normalized to lowercase before matching.
+
+```
+https://EXAMPLE.COM/path     → matches example.com
+https://WWW.Example.Com/page → matches example.com (default)
+```
+
+### Ports
+
+Ports are correctly parsed and do not affect matching.
+
+```
+https://example.com:8443/api → matches example.com
+https://example.com:3000     → matches example.com
+```
+
+## Input & Output
+
+**STDIN:** Accepts URLs or hostnames, one per line.
+
+```
+https://example.com/
+https://api.example.com/login
+https://external.org/
+```
+
+**STDOUT:** Matched input lines only.
+
+```
+https://example.com/
+https://api.example.com/login
+```
+
+**STDERR:** Statistics, errors, and diagnostic messages (does not interfere with pipeline data).
+
+## Deduplication
+
+Deduplication is disabled by default. Enable with `-d`.
+
+```bash
+cat urls.txt | tagi -s example.com -d
+```
+
+Output preserves original URL formatting; `tagi` does not normalize URLs.
+
+## Scope File Format
+
+Scope files contain one hostname per line. Blank lines and lines starting with `#` are ignored.
+
+```
+# Primary target
+example.com
+
+# Secondary target
+target.org
+
+# Out of scope
+exclude.com
+```
 
 ## Examples
 
-### Single Scope
+### Basic Usage
 
 ```bash
 cat urls.txt | tagi -s example.com
@@ -81,25 +192,36 @@ cat urls.txt | tagi -s example.com
 cat urls.txt | tagi -s scope.txt
 ```
 
-### Deduplicate Results
+### Exact Hostname Matching
+
+```bash
+cat urls.txt | tagi -s example.com --no-sub
+```
+
+### With Deduplication
 
 ```bash
 cat urls.txt | tagi -s example.com -d
 ```
 
-### Quiet Pipeline
+### Quiet Output
 
 ```bash
 cat urls.txt | tagi -s example.com -q
 ```
 
-### Verbose Statistics
+### Statistics
 
 ```bash
 cat urls.txt | tagi -s example.com -v
 ```
 
-### Bug Bounty Recon Pipeline
+Output example:
+```
+tagi: total=1000 matched=487
+```
+
+### Bug Bounty Pipelines
 
 ```bash
 katana -list domains.txt | tagi -s scope.txt -d
@@ -113,124 +235,20 @@ gau example.com | tagi -s example.com -d
 waybackurls example.com | tagi -s example.com -d
 ```
 
-## Scope File
-
-The scope file contains one hostname per line.
-
-```text
-# Main target
-example.com
-
-# Additional authorized target
-target.org
-```
-
-Blank lines and lines beginning with `#` are ignored.
-
-## Matching Behavior
-
-If the scope is:
-
-```text
-example.com
-```
-
-These are matched:
-
-```text
-example.com
-www.example.com
-api.example.com
-a.b.example.com
-```
-
-These are **not** matched:
-
-```text
-evil-example.com
-notexample.com
-example.com.au
-example.org
-```
-
-Hostnames are matched case-insensitively.
-
-For example:
-
-```text
-https://EXAMPLE.COM/path
-```
-
-matches:
-
-```text
-example.com
-```
-
-Ports are handled correctly:
-
-```text
-https://example.com:8443/api
-```
-
-matches:
-
-```text
-example.com
-```
-
-## Input & Output
-
-`tagi` is designed for Unix-style pipelines.
-
-**STDIN**
-
-Receives URLs or hosts:
-
-```text
-https://example.com/
-https://api.example.com/login
-https://external.example.org/
-```
-
-**STDOUT**
-
-Only matched input lines are printed:
-
-```text
-https://example.com/
-https://api.example.com/login
-```
-
-Statistics and errors are written to **STDERR**, keeping STDOUT safe for further pipeline processing.
-
-## Deduplication
-
-Deduplication is **disabled by default**.
-
-Enable it with:
-
-```bash
-tagi -s example.com -d
-```
-
-The original input URL is preserved when printed; `tagi` does not rewrite or normalize the output URL.
-
 ## Version
 
 ```bash
 tagi --version
 ```
 
-Example:
-
-```text
-tagi 1.0.0
+Output:
+```
+tagi 1.3
 ```
 
-## Verification
+## Development
 
-Run the following before releasing:
+Before releasing, run:
 
 ```bash
 gofmt -w .
@@ -242,12 +260,12 @@ go build -o tagi .
 ## Disclaimer
 
 > [!WARNING]
-> `tagi` is intended for authorized security research, bug-bounty reconnaissance, and educational use.
+> `tagi` is for authorized security research, bug-bounty testing, and educational use only.
 >
-> Only process targets that are explicitly within the scope of the relevant bug-bounty program or for which you have authorization to perform security testing.
+> Only process targets that are explicitly in scope or for which you have written authorization.
 >
-> The author and contributors are not responsible for misuse of the software.
+> Unauthorized access to computer systems is illegal. The author and contributors are not responsible for misuse.
 
 ## License
 
-Distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
+MIT License. See [`LICENSE`](LICENSE) for details.
