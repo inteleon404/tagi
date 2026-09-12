@@ -31,7 +31,7 @@ _/  |______     ____ |__|
 ### Pre-built Binary
 
 ```bash
-go install github.com/INTELEON404/tagi@latest
+go install github.com/inteleon404/tagi@latest
 ```
 
 Ensure your Go binary directory is in your `$PATH`.
@@ -39,7 +39,7 @@ Ensure your Go binary directory is in your `$PATH`.
 ### Build from Source
 
 ```bash
-git clone https://github.com/INTELEON404/tagi.git
+git clone https://github.com/inteleon404/tagi.git
 cd tagi
 go build -o tagi .
 ```
